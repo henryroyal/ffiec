@@ -1,0 +1,9 @@
+.idea
+.gitignore
+.dockerignore
+
+data
+README
+
+build
+dist
