@@ -3,7 +3,5 @@
 .dockerignore
 
 data
-README
-
 build
 dist
