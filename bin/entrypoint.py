@@ -52,7 +52,7 @@ def main(target_rssd, hbase_reinit, hbase_host, hbase_port,
     init_logging(logging_level, logging_format)
     logging.warning('initialized logging')
 
-    if target_rssd == '*':
+    if target_rssd == 'all':
         target_rssd = RSSD_WILDCARD
     else:
         target_rssd = int(target_rssd)
