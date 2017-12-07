@@ -1,4 +1,4 @@
 click
-influxdb
+happybase
 json-log-formatter
 zeep
