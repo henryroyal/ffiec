@@ -1,1 +1,11 @@
 # FFIEC ETL System
+
+This is a system for extracting call reports from the Federal Financial Institutions Examination Council's
+Central Data Repository. The data is loaded into hbase and designed to hopefully facilitate analysis. 
+
+The ETL process is executed in a docker container, a running container can be thought of as a 'job'. 
+Each instance of the software is intended to collect the data from a single institution. The
+idea is that many jobs can be executed simultaniously on a container scheduling system. When running
+a job, specify the institution you'd like data on by passing a valid [rssd identifier](https://www.alacra.com/alacra/outside/lei/info/rssdid.html).
+
+If you're feeling patient, you can pass a wildcard splat ```*```. 
