@@ -2,6 +2,8 @@ import happybase
 import logging
 
 #TODO tune these definitions
+#report.CallReport:
+#report.ReportPeriod:
 REPORT_TABLE = 'report'
 REPORT_TABLE_DEFINITION = {'CallReport': dict(), 'Institution': dict()}
 
