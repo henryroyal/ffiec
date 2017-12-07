@@ -2,6 +2,7 @@ import sys
 import click
 import json_log_formatter
 import logging
+from datetime import datetime
 
 from ffiec.extractor import Extractor
 from ffiec.transformer import Transformer
@@ -12,42 +13,24 @@ LOG_FORMATS = click.Choice(['LINE', 'JSON'])
 
 FFIEC_WSDL = 'https://cdr.ffiec.gov/Public/PWS/WebServices/RetrievalService.asmx?WSDL'
 MDRM = 'MDRM #'
-CALL_REPORT = 'Call'
-SDF = 'SDF'
 ID_RSSD = 'ID_RSSD'
-RSSD_WILDCARD = 11111111111  # wildcard since RSSD identifier must 10 digits or less
-
-REPORT_TABLE = 'report'
-REPORT_TABLE_DEFINITION = {'CallReport': dict(), 'Institution': dict()}
-
-PERIOD_TABLE = 'period'
-PERIOD_TABLE_DEFINITION = {'ReportPeriod': dict()}
-
-INSTITUTION_TABLE = 'institution'
-INSTITUTION_TABLE_DEFINITION = {'Institution': dict()}
-
-MDRM_TABLE = 'mdrm'
-MDRM_TABLE_DEFINITION = {'MDRM': dict()}
+RSSD_WILDCARD = 11111111111  #RSSD identifier must 10 digits or less
 
 
 def init_logging(logging_level, logging_format):
-    logger = logging.getLogger('etlFFIEC')
+    logger = logging.getLogger()
     logger.setLevel(logging_level)
-
-    log_handler = logging.StreamHandler()
-    log_handler.setLevel(logging_level)
 
     if logging_format == 'LINE':
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
     elif logging_format == 'JSON':
         formatter = json_log_formatter.JSONFormatter()
-
     else:
         raise ValueError('unknown log format, something has gone terribly wrong')
 
-    log_handler.setFormatter(formatter)
-    logger.addHandler(log_handler)
+    lh = logging.StreamHandler()
+    lh.setFormatter(formatter)
+    logger.addHandler(lh)
 
 
 @click.command()
@@ -58,74 +41,59 @@ def init_logging(logging_level, logging_format):
 @click.option('--ffiec-wsdl-url', envvar='FFIEC_WSDL_URL', default=FFIEC_WSDL)
 @click.option('--ffiec-username', envvar='FFIEC_USERNAME', required=True)
 @click.option('--ffiec-token', envvar='FFIEC_TOKEN', required=True)
+@click.option('--mdrm-path', envvar='MDRM_PATH', default='MDRM.csv')
 @click.option('--logging-level', envvar='LOGGING_LEVEL', type=LOG_LEVELS, default='WARNING')
 @click.option('--logging-format', envvar='LOGGING_FORMAT', type=LOG_FORMATS, default='LINE')
 def main(target_rssd, hbase_reinit, hbase_host, hbase_port,
          ffiec_wsdl_url, ffiec_username, ffiec_token,
-         logging_level, logging_format):
+         mdrm_path, logging_level, logging_format):
+
+    job_start_timestamp = datetime.now()
+    init_logging(logging_level, logging_format)
+    logging.warning('initialized logging')
 
     if target_rssd == '*':
-        logging.warning('collecting for all rssd values'.format(target_rssd))
         target_rssd = RSSD_WILDCARD
     else:
-        logging.info('filtering for institution rssd {}'.format(target_rssd))
         target_rssd = int(target_rssd)
 
-    init_logging(logging_level, logging_format)
-    logging.debug('initialized logging')
-
     loader = Loader(hbase_host)
-    hbase = loader.get_connection()
+    loader.connect()
     if hbase_reinit:
-        try:
-            for table in (REPORT_TABLE, PERIOD_TABLE, INSTITUTION_TABLE, MDRM):
-                hbase.disable_table(table)
-                hbase.delete_table(table)
-                logging.warning('deleted hbase table {}'.format(table))
-        except Exception as err:  #FIXME build thrift objects and make this correct
-            logging.critical(str(err))
+        loader.delete_tables()
+        loader.create_tables()
 
-        # TODO tune this
-        hbase.create_table(REPORT_TABLE, REPORT_TABLE_DEFINITION)
-        hbase.create_table(PERIOD_TABLE, PERIOD_TABLE_DEFINITION)
-        hbase.create_table(INSTITUTION_TABLE, INSTITUTION_TABLE_DEFINITION)
-        hbase.create_table(MDRM_TABLE, MDRM_TABLE_DEFINITION)
-
-    reports_table = hbase.table(REPORT_TABLE)
-    periods_table = hbase.table(PERIOD_TABLE)
-    institutions_table = hbase.table(INSTITUTION_TABLE)
-    mdrm_table = hbase.table(MDRM_TABLE)
-
+    mdrm_fh = open(mdrm_path, 'r')
+    mdrm_csv = mdrm_fh.read()
+    mdrm = Transformer.csv_to_dictreader(mdrm_csv)
+    logging.info('read MDRM data')
     #TODO populate mdrm table
-    #mdrm_fh = open('MDRM.csv', 'r')
-    #mdrm_csv = mdrm_fh.read()
-    #mdrm = Transformer.csv_to_dictreader(mdrm_csv)
-    #logging.info('read MDRM data')
 
-    extractor = Extractor(ffiec_wsdl_url, ffiec_username, ffiec_token)
-    extractor.setup()
+    ffiec = Extractor(ffiec_wsdl_url, ffiec_username, ffiec_token)
+    ffiec.setup()
 
-    for period in extractor.reporting_periods_by_series(CALL_REPORT):
-        reporters = extractor.client.service.RetrievePanelOfReporters(CALL_REPORT, period) #TODO tuck this in extractor
-        logging.info('retrieved {len} reporters for panel {period}'.format(len=len(reporters), period=period))
+    for period in ffiec.reporting_periods():
+        reporters = ffiec.reporting_institutions(period)
+        count_of_reporters = len(reporters)
+        #TODO - populate reporter table
 
         rssd_set = {int(reporter[ID_RSSD]) for reporter in reporters}
-        if target_rssd not in rssd_set:
-            logging.warning('{target} not in rssd set for period {date}'.format(target=target_rssd, date=period))
+        if target_rssd not in rssd_set and target_rssd != RSSD_WILDCARD:
+            logging.info('{target} not in rssd set for period {date}'.format(target=target_rssd, date=period))
             continue
 
         for institution in reporters:
+            #TODO populate institution table
             rssd = int(institution[ID_RSSD])
             if rssd != target_rssd and target_rssd != RSSD_WILDCARD:
                 continue
 
-            response = Transformer.bytes_to_unicode(
-                extractor.client.service.RetrieveFacsimile(CALL_REPORT, period, ID_RSSD, institution[ID_RSSD], SDF)
+            unicode_sdf_facsimile = Transformer.bytes_to_unicode(
+                ffiec.call_report_facsimile(period, institution)
             )
+            facsimile = Transformer.sdf_to_dictreader(unicode_sdf_facsimile)
 
-            facsimile = Transformer.sdf_to_dictreader(response)
             row_key = bytes('{rssd}-{period}'.format(rssd=rssd, period=period), 'utf-8')
-
             for key in institution:
                 if not institution[key]:
                     institution[key] = ''
@@ -138,9 +106,13 @@ def main(target_rssd, hbase_reinit, hbase_host, hbase_port,
 
                 column_key = bytes('Institution:{}'.format(key.strip().lower().replace(' ', '_')), 'utf-8')
                 logging.debug('{row} Institution:{col} = {value} '.format(value=institution[key],
-                                                                         col=column_key,
-                                                                         row=period))
-                reports_table.put(row_key, {column_key: institution[key]})
+                                                                          col=column_key,
+                                                                          row=period))
+
+                loader.report_table.put(row_key, {column_key: institution[key]})
+
+            logging.info('loaded RSSD# {rssd} from {period} into report::Institution'.format(rssd=rssd,
+                                                                                             period=period))
 
             for item in facsimile:
                 formatted_mdrm = item[MDRM].upper()
@@ -160,13 +132,19 @@ def main(target_rssd, hbase_reinit, hbase_host, hbase_port,
                                                                         key=formatted_key), 'utf-8')
 
                     logging.debug('{row} CallReport:{mdrm}:{key} = {value}'.format(row=row_key,
-                                                                                  mdrm=item[MDRM],
-                                                                                  key=formatted_key,
-                                                                                  value=formatted_value))
-                    reports_table.put(row_key, {column_key: formatted_value})
+                                                                                   mdrm=item[MDRM],
+                                                                                   key=formatted_key,
+                                                                                   value=formatted_value))
 
-    logging.info('job complete')
-    sys.exit(0)
+                    loader.report_table.put(row_key, {column_key: formatted_value})
+
+            logging.info('loaded RSSD# {rssd} from {period} into report::CallReport'.format(rssd=rssd,
+                                                                                            period=period))
+        logging.info('job complete')
+        job_complete_timestamp = datetime.now()
+        job_runtime = (job_complete_timestamp - job_start_timestamp)
+        logging.info('runtime: {}'.format(job_runtime))
 
 if __name__ == '__main__':
     main()
+    sys.exit(0)

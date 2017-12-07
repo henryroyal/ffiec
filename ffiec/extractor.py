@@ -1,7 +1,10 @@
-import logging
-
 import zeep
 from zeep.wsse.username import UsernameToken
+
+
+CALL_REPORT = 'Call'
+ID_RSSD = 'ID_RSSD'
+SDF = 'SDF'
 
 class Extractor:
     def __init__(self, wsdl_url, username, token):
@@ -16,11 +19,19 @@ class Extractor:
         if not self.client.service.TestUserAccess():
             raise ValueError('API authentication failed, check your username and token - did you rotate your token?')
 
-        logging.debug('API authentication success')
-
     def _assert_client_initialized_or_fail(self):
         if not self.client:
             raise ValueError('soap client is uninitialized')
 
-    def reporting_periods_by_series(self, series):
-        return self.client.service.RetrieveReportingPeriods(series)
+    def reporting_periods(self):
+        self._assert_client_initialized_or_fail()
+        return self.client.service.RetrieveReportingPeriods(CALL_REPORT)
+
+    def reporting_institutions(self, period):
+        self._assert_client_initialized_or_fail()
+        return self.client.service.RetrievePanelOfReporters(CALL_REPORT, period)
+
+    def call_report_facsimile(self, period, institution):
+        self._assert_client_initialized_or_fail()
+        return self.client.service.RetrieveFacsimile(CALL_REPORT, period, ID_RSSD, institution[ID_RSSD], SDF)
+
