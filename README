@@ -1,11 +1,40 @@
 # FFIEC ETL System
 
 This is a system for extracting call reports from the Federal Financial Institutions Examination Council's
-Central Data Repository. The data is loaded into hbase and designed to hopefully facilitate analysis. 
+Central Data Repository. The data is loaded into hbase. The design hopefully facilitates querying for analysis. 
 
-The ETL process is executed in a docker container, a running container can be thought of as a 'job'. 
-Each instance of the software is intended to collect the data from a single institution. The
-idea is that many jobs can be executed simultaniously on a container scheduling system. When running
-a job, specify the institution you'd like data on by passing a valid [rssd identifier](https://www.alacra.com/alacra/outside/lei/info/rssdid.html).
+The ETL process is executed in a docker container. A running container can be thought of as a 'job'. 
+Each job is intended to collect the data from a single institution over all collection periods. The
+idea is that many jobs can be executed simultaneously on a container scheduling/orchestration system. 
+When running a job, specify the institution you'd like data on by passing a valid [rssd identifier](https://www.alacra.com/alacra/outside/lei/info/rssdid.html).
 
-If you're feeling patient, you can pass a wildcard splat ```*```. 
+If you're feeling patient, you can indicate a wildcard by passing ```all```.
+
+## To run an ETL job:
+You'll need an instance of hbase, if for some reason you don't have an hbase cluster laying around.
+
+The program assumes you're running a thrift server on port 9090. This will get you something to test against.
+
+```docker run --name hbase -h hbase -d -v $PWD/hbase:/data -p 2181:2181 -p 8080:8080 -p 8085:8085 -p 9160:9160 -p 16010:16010 -p 9090:9090 dajobe/hbase```
+
+From the project root, build the project container.
+
+```docker build . --tag=etlffiec:latest```
+
+
+Ideally you'd have something like kubernetes managing the FFIEC_TOKEN, 
+but for local testing just set some variables in your shell.
+
+FFIEC_USER=
+
+FFIEC_TOKEN=
+
+TARGET_RSSD=
+
+On the first run, you'll want to drop/create tables and load MDRM metadata into the dictionary table by passing ```-eHBASE_REINIT=True -e LOAD_DATADICTIONARY=True```
+
+```docker run --name=first_${RSSD_TOKEN} --link=hbase -eHBASE_REINIT=True -eLOAD_DATADICTIONARY=True -eFFIEC_USERNAME=${FFIEC_USER} -eFFIEC_TOKEN=${FFIEC_TOKEN} -eHBASE_HOST=hbase -eLOGGING_LEVEL=INFO etlffiec ${RSSD_TOKEN}```
+
+After that, you can loop over an array of RSSD identifiers and execute jobs in parallel.
+
+```docker run -d --name=${RSSD_TOKEN} --link=hbase -eFFIEC_USERNAME=${FFIEC_USER} -eFFIEC_TOKEN=${FFIEC_TOKEN} -eHBASE_HOST=hbase etlffiec ${RSSD_TOKEN}```
