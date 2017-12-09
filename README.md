@@ -37,7 +37,7 @@ For local testing just set some variables in your shell. Here are all the parame
 * MDRM_PATH=./MDRM.csv
 * UPDATE_METADATA=False
 * LOGGING_LEVEL=WARNING
-* LOGGING_FORMAT=LINE
+* LOGGING_FORMAT=JSON
 
 
 First you'll want to create the tables and load MDRM metadata into the dictionary table by passing
