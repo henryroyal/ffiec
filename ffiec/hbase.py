@@ -61,18 +61,13 @@ class Hbase:
             logging.error(err)
             raise err
 
-    def delete_metadata_tables(self):
-        for table in (PERIOD_TABLE, INSTITUTION_TABLE, DATA_DICTIONARY):
-            self._disable_table(table)
-            self._delete_table(table)
-        logging.warning('deleted metadata tables')
+    def delete_dictionary_table(self):
+        self._disable_table(DATA_DICTIONARY)
+        self._delete_table(DATA_DICTIONARY)
+        logging.warning('deleted MDRM dictionary tables')
 
-    def create_metadata_tables(self):
-        for table, definition in ((PERIOD_TABLE, PERIOD_TABLE_DEFINITION),
-                                  (INSTITUTION_TABLE, INSTITUTION_TABLE_DEFINITION),
-                                  (DATA_DICTIONARY, DATA_DICTIONARY_DEFINITION)):
-
-            self._create_table(table, definition)
+    def create_dictionary_table(self):
+        self._create_table(DATA_DICTIONARY, DATA_DICTIONARY_DEFINITION)
         logging.warning('created metadata tables')
 
     def delete_report_table(self):
@@ -83,3 +78,16 @@ class Hbase:
     def create_report_table(self):
         self._create_table(REPORT_TABLE, REPORT_TABLE_DEFINITION)
         logging.warning('created report table')
+
+    def delete_lookup_tables(self):
+        for table in ((PERIOD_TABLE, PERIOD_TABLE_DEFINITION,
+                       INSTITUTION_TABLE, INSTITUTION_TABLE_DEFINITION)):
+            self._disable_table(table)
+            self._delete_table(table)
+        logging.warning('deleted lookup tables')
+
+    def create_lookup_tables(self):
+        for table in ((PERIOD_TABLE, PERIOD_TABLE_DEFINITION,
+                       INSTITUTION_TABLE, INSTITUTION_TABLE_DEFINITION)):
+            self._create_table(table)
+        logging.warning('created lookup tables')

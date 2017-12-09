@@ -39,6 +39,11 @@ def current_runtime(start_time):
     return 'current runtime: {time}'.format(time=duration)
 
 
+def completed_runtime(start_time):
+    duration = (datetime.now() - start_time)
+    return 'job completed in {time}'.format(time=duration)
+
+
 def rssd_is_filtered(rssd_target, rssd):
     if rssd_target == RSSD_WILDCARD or int(rssd) == rssd_target:
         logging.debug('rssd {rssd} passed filter'.format(rssd=rssd))
@@ -54,15 +59,24 @@ def period_is_filtered(period_target, period):
 
     return True
 
+
 def init_database(hbase):
-    hbase.create_metadata_tables()
+    hbase.create_dictionary_table()
+    hbase.create_lookup_tables()
     hbase.create_report_table()
 
 
+def truncate_dictionary_table(hbase):
+    hbase.delete_dictionary_table()
+    hbase.create_dictionary_table()
+
+
 def truncate_database(hbase):
-    hbase.delete_metadata_tables()
+    hbase.delete_dictionary_table()
+    hbase.delete_lookup_tables()
     hbase.delete_report_table()
-    hbase.create_metadata_tables()
+    hbase.create_dictionary_table()
+    hbase.create_lookup_tables()
     hbase.create_report_table()
 
 
@@ -92,12 +106,12 @@ def load_mdrm_metadata(hbase, mdrm_path):
 @click.option('--ffiec-token', envvar='FFIEC_TOKEN')
 @click.option('--mdrm-path', envvar='MDRM_PATH', default='MDRM.csv')
 @click.option('--logging-level', envvar='LOGGING_LEVEL', type=LOG_LEVELS, default='WARNING')
-@click.option('--logging-format', envvar='LOGGING_FORMAT', type=LOG_FORMATS, default='LINE')
+@click.option('--logging-format', envvar='LOGGING_FORMAT', type=LOG_FORMATS, default='JSON')
 def main(init, truncate_tables, update_metadata, rssd_target, period_target,
          hbase_host, ffiec_wsdl_url, ffiec_username, ffiec_token,
          mdrm_path, logging_level, logging_format):
 
-    job_start_timestamp = datetime.now()
+    start_time = datetime.now()
     init_logging(logging_level, logging_format)
     logging.debug('initialized logging')
 
@@ -107,22 +121,21 @@ def main(init, truncate_tables, update_metadata, rssd_target, period_target,
     if init:
         init_database(hbase)
         load_mdrm_metadata(hbase, mdrm_path)
-        logging.info(current_runtime(job_start_timestamp))
+        logging.info(current_runtime(start_time))
         logging.critical('created all tables, exiting...')
         sys.exit(0)
 
     if truncate_tables:
         truncate_database(hbase)
-        logging.info(current_runtime(job_start_timestamp))
+        logging.info(current_runtime(start_time))
         logging.critical('finished truncating tables, exiting...')
         sys.exit(0)
 
     if update_metadata:
         # load the Fed's Micro Data Reference Manual into 'dictionary'
-        hbase.delete_metadata_tables()
-        hbase.create_metadata_tables()
+        truncate_dictionary_table(hbase)
         load_mdrm_metadata(hbase, mdrm_path)
-        logging.info(current_runtime(job_start_timestamp))
+        logging.info(current_runtime(start_time))
         logging.critical('refreshed MDRM definitions in `dictionary` from {path}, exiting...'.format(path=mdrm_path))
         sys.exit(0)
 
@@ -178,7 +191,7 @@ def main(init, truncate_tables, update_metadata, rssd_target, period_target,
             report_table.send()
             logging.info('loaded report::Institution into {rssd}-{period}'.format(rssd=rssd, period=period))
             logging.info('loaded report::CallReport into {rssd}-{period}'.format(rssd=rssd, period=period))
-            logging.info(current_runtime(job_start_timestamp))
+            logging.info(current_runtime(start_time))
 
         # Load period=>institution lookup table `period`
         period_table = hbase.period_table.batch()
@@ -192,7 +205,7 @@ def main(init, truncate_tables, update_metadata, rssd_target, period_target,
 
         period_table.send()
         logging.info('loaded period=>institution lookup table for period {}'.format(period))
-        logging.info(current_runtime(job_start_timestamp))
+        logging.info(current_runtime(start_time))
 
         # Load institution=>period lookup data into `institution`
         institution_table = hbase.institution_table.batch()
@@ -207,10 +220,9 @@ def main(init, truncate_tables, update_metadata, rssd_target, period_target,
 
         institution_table.send()
         logging.info('loaded institution=>period lookup table for period {}'.format(period))
-        logging.info(current_runtime(job_start_timestamp))
+        logging.info(current_runtime(start_time))
 
-    total_runtime = (datetime.now() - job_start_timestamp)
-    logging.warning('job completed in {time}'.format(time=total_runtime))
+    logging.warning(completed_runtime(start_time))
     sys.exit(0)
 
 if __name__ == '__main__':
