@@ -56,10 +56,11 @@ def period_is_filtered(period_target, period):
 
 
 @click.command()
-@click.option('--rssd-target', envvar='RSSD_TARGET', default=None)
-@click.option('--period-target', envvar='PERIOD_TARGET', default=None)
+@click.option('--init', envvar='INIT', is_flag=True, type=bool)
 @click.option('--truncate-tables', envvar='TRUNCATE_TABLES', is_flag=True, type=bool)
 @click.option('--update-metadata', envvar='UPDATE_METADATA', is_flag=True, type=bool)
+@click.option('--rssd-target', envvar='RSSD_TARGET', default=None)
+@click.option('--period-target', envvar='PERIOD_TARGET', default=None)
 @click.option('--hbase-host', envvar='HBASE_HOST', default='127.0.0.1')
 @click.option('--ffiec-wsdl-url', envvar='FFIEC_WSDL_URL', default=FFIEC_WSDL)
 @click.option('--ffiec-username', envvar='FFIEC_USERNAME', required=True)
@@ -67,7 +68,7 @@ def period_is_filtered(period_target, period):
 @click.option('--mdrm-path', envvar='MDRM_PATH', default='MDRM.csv')
 @click.option('--logging-level', envvar='LOGGING_LEVEL', type=LOG_LEVELS, default='WARNING')
 @click.option('--logging-format', envvar='LOGGING_FORMAT', type=LOG_FORMATS, default='LINE')
-def main(rssd_target, period_target, truncate_tables, update_metadata,
+def main(init, truncate_tables, update_metadata, rssd_target, period_target,
          hbase_host, ffiec_wsdl_url, ffiec_username, ffiec_token,
          mdrm_path, logging_level, logging_format):
 
@@ -85,16 +86,21 @@ def main(rssd_target, period_target, truncate_tables, update_metadata,
     ffiec = Extractor(ffiec_wsdl_url, ffiec_username, ffiec_token)
     ffiec.setup()
 
+    if init:
+        hbase.create_metadata_tables()
+        hbase.create_report_table()
+        logging.critical('created all tables')
+
     if truncate_tables:
         hbase.delete_metadata_tables()
         hbase.delete_report_table()
+        logging.warning('deleted all tables')
         hbase.create_metadata_tables()
         hbase.create_report_table()
-        logging.critical('truncated all tables')
+        logging.warning('created all tables')
 
-    if update_metadata:
-        # load MDRM.csv into the table 'dictionary'
-        # this csv contains information on each field in the FFIEC facimilies
+    if update_metadata or init:
+        # load the Fed's Micro Data Reference Manual into 'dictionary'
         hbase.delete_metadata_tables()
         hbase.create_metadata_tables()
         logging.warning('truncated metadata tables')
@@ -114,47 +120,22 @@ def main(rssd_target, period_target, truncate_tables, update_metadata,
         logging.info('loaded MDRM definitions from {path} into dictionary table'.format(path=mdrm_path))
         logging.info(current_runtime(job_start_timestamp))
 
+        # If we're initializing the database,
+        # finish by loading the MDRM data and
+        # then bailing out of the program
+        if init:
+            logging.warning('initialization complete')
+            sys.exit(0)
+
+    # Start the actual ETL process
     for period in ffiec.reporting_periods():
         if period_is_filtered(period_target, period):
             continue
 
         reporters = ffiec.reporting_institutions(period)
         rssd_set = {int(reporter[ID_RSSD]) for reporter in reporters}
-        #count_of_reporters = len(rssd_set)
 
-
-        # Load period=>institution lookup table
-        period_table = hbase.period_table.batch()
-        for institution in reporters:
-            rssd = int(institution[ID_RSSD])
-            if rssd_is_filtered(rssd_target, institution[ID_RSSD]):
-                continue
-
-            row_key, column_key, value = Transformer.to_period__institution(period, institution[ID_RSSD], institution)
-            period_table.put(row_key, {column_key: value})
-
-        period_table.send()
-        logging.info('loaded period=>institution lookup table for period {}'.format(period))
-        logging.info(current_runtime(job_start_timestamp))
-
-
-        # Load institution=>period lookup table
-        institution_table = hbase.institution_table.batch()
-        for institution in reporters:
-            rssd = int(institution[ID_RSSD])
-            if rssd_is_filtered(rssd_target, rssd):
-                logging.debug('filtering reporter rssd# {rssd}'.format(rssd=rssd))
-                continue
-
-            row_key, column_key, value = Transformer.to_institution__period(period, rssd, institution)
-            institution_table.put(row_key, {column_key: value})
-
-        institution_table.send()
-        logging.info('loaded institution=>period lookup table for period {}'.format(period))
-        logging.info(current_runtime(job_start_timestamp))
-
-
-        # Load the actual data
+        # Load the actual call reports into `report`
         report_table = hbase.report_table.batch()
         for institution in reporters:
             rssd = int(institution[ID_RSSD])
@@ -186,6 +167,35 @@ def main(rssd_target, period_target, truncate_tables, update_metadata,
             logging.info('loaded report::Institution into {rssd}-{period}'.format(rssd=rssd, period=period))
             logging.info('loaded report::CallReport into {rssd}-{period}'.format(rssd=rssd, period=period))
             logging.info(current_runtime(job_start_timestamp))
+
+        # Load period=>institution lookup table `period`
+        period_table = hbase.period_table.batch()
+        for institution in reporters:
+            rssd = int(institution[ID_RSSD])
+            if rssd_is_filtered(rssd_target, rssd):
+                continue
+
+            row_key, column_key, value = Transformer.to_period__institution(period, institution[ID_RSSD], institution)
+            period_table.put(row_key, {column_key: value})
+
+        period_table.send()
+        logging.info('loaded period=>institution lookup table for period {}'.format(period))
+        logging.info(current_runtime(job_start_timestamp))
+
+        # Load institution=>period lookup data into `institution`
+        institution_table = hbase.institution_table.batch()
+        for institution in reporters:
+            rssd = int(institution[ID_RSSD])
+            if rssd_is_filtered(rssd_target, rssd):
+                logging.debug('filtering reporter rssd# {rssd}'.format(rssd=rssd))
+                continue
+
+            row_key, column_key, value = Transformer.to_institution__period(period, rssd, institution)
+            institution_table.put(row_key, {column_key: value})
+
+        institution_table.send()
+        logging.info('loaded institution=>period lookup table for period {}'.format(period))
+        logging.info(current_runtime(job_start_timestamp))
 
     total_runtime = (datetime.now() - job_start_timestamp)
     logging.warning('job completed in {time}'.format(time=total_runtime))
