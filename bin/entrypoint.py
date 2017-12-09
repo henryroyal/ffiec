@@ -57,7 +57,6 @@ def period_is_filtered(period_target, period):
 def init_database(hbase):
     hbase.create_metadata_tables()
     hbase.create_report_table()
-    logging.critical('created all tables')
 
 
 def truncate_database(hbase):
@@ -109,11 +108,11 @@ def main(init, truncate_tables, update_metadata, rssd_target, period_target,
         init_database(hbase)
         load_mdrm_metadata(hbase, mdrm_path)
         logging.info(current_runtime(job_start_timestamp))
-        logging.warning('initialization complete, exiting...')
+        logging.critical('created all tables, exiting...')
         sys.exit(0)
 
     if truncate_tables:
-        truncate_tables(hbase)
+        truncate_database(hbase)
         logging.info(current_runtime(job_start_timestamp))
         logging.critical('finished truncating tables, exiting...')
         sys.exit(0)
