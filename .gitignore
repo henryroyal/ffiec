@@ -2,8 +2,7 @@
 .idea
 
 # sample data
-data
-
+hbase
 MDRM.csv
 
 # sample client

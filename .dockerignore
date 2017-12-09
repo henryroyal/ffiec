@@ -2,6 +2,11 @@
 .gitignore
 .dockerignore
 
-data
 build
 dist
+hbase
+notebook-requirements.txt
+notebooks
+README
+
+etlFFIEC.egg-info
