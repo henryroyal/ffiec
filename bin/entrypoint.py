@@ -54,6 +54,32 @@ def period_is_filtered(period_target, period):
 
     return True
 
+def init_database(hbase):
+    hbase.create_metadata_tables()
+    hbase.create_report_table()
+    logging.critical('created all tables')
+
+
+def truncate_database(hbase):
+    hbase.delete_metadata_tables()
+    hbase.delete_report_table()
+    hbase.create_metadata_tables()
+    hbase.create_report_table()
+
+
+def load_mdrm_metadata(hbase, mdrm_path):
+    mdrm_data = Transformer.mdrm_to_dict(mdrm_path)
+    data_dictionary = hbase.data_dictionary_table.batch()
+    for mdrm, item in mdrm_data.items():
+        if not isinstance(item, dict):
+            continue
+
+        mdrm = Transformer.normalize_mdrm(mdrm)
+        for key, value in item.items():
+            row_key, column_key, value = Transformer.to_mdrm__mdrm(mdrm, key, value)
+            data_dictionary.put(row_key, {column_key: value})
+    data_dictionary.send()
+
 
 @click.command()
 @click.option('--init', envvar='INIT', is_flag=True, type=bool)
@@ -63,8 +89,8 @@ def period_is_filtered(period_target, period):
 @click.option('--period-target', envvar='PERIOD_TARGET', default=None)
 @click.option('--hbase-host', envvar='HBASE_HOST', default='127.0.0.1')
 @click.option('--ffiec-wsdl-url', envvar='FFIEC_WSDL_URL', default=FFIEC_WSDL)
-@click.option('--ffiec-username', envvar='FFIEC_USERNAME', required=True)
-@click.option('--ffiec-token', envvar='FFIEC_TOKEN', required=True)
+@click.option('--ffiec-username', envvar='FFIEC_USERNAME')
+@click.option('--ffiec-token', envvar='FFIEC_TOKEN')
 @click.option('--mdrm-path', envvar='MDRM_PATH', default='MDRM.csv')
 @click.option('--logging-level', envvar='LOGGING_LEVEL', type=LOG_LEVELS, default='WARNING')
 @click.option('--logging-format', envvar='LOGGING_FORMAT', type=LOG_FORMATS, default='LINE')
@@ -76,56 +102,43 @@ def main(init, truncate_tables, update_metadata, rssd_target, period_target,
     init_logging(logging_level, logging_format)
     logging.debug('initialized logging')
 
+    hbase = Hbase(hbase_host)
+    hbase.connect()
+
+    if init:
+        init_database(hbase)
+        load_mdrm_metadata(hbase, mdrm_path)
+        logging.info(current_runtime(job_start_timestamp))
+        logging.warning('initialization complete, exiting...')
+        sys.exit(0)
+
+    if truncate_tables:
+        truncate_tables(hbase)
+        logging.info(current_runtime(job_start_timestamp))
+        logging.critical('finished truncating tables, exiting...')
+        sys.exit(0)
+
+    if update_metadata:
+        # load the Fed's Micro Data Reference Manual into 'dictionary'
+        hbase.delete_metadata_tables()
+        hbase.create_metadata_tables()
+        load_mdrm_metadata(hbase, mdrm_path)
+        logging.info(current_runtime(job_start_timestamp))
+        logging.critical('refreshed MDRM definitions in `dictionary` from {path}, exiting...'.format(path=mdrm_path))
+        sys.exit(0)
+
+    if not ffiec_username:
+        raise ValueError('provide a username for a FFIEC CDR account')
+
+    if not ffiec_token:
+        raise ValueError('provide an authentication token for FFIEC CDR account')
+
     if rssd_target is None:
         rssd_target = RSSD_WILDCARD
     rssd_target = int(rssd_target)
 
-    hbase = Hbase(hbase_host)
-    hbase.connect()
-
     ffiec = Extractor(ffiec_wsdl_url, ffiec_username, ffiec_token)
     ffiec.setup()
-
-    if init:
-        hbase.create_metadata_tables()
-        hbase.create_report_table()
-        logging.critical('created all tables')
-
-    if truncate_tables:
-        hbase.delete_metadata_tables()
-        hbase.delete_report_table()
-        logging.warning('deleted all tables')
-        hbase.create_metadata_tables()
-        hbase.create_report_table()
-        logging.warning('created all tables')
-
-    if update_metadata or init:
-        # load the Fed's Micro Data Reference Manual into 'dictionary'
-        hbase.delete_metadata_tables()
-        hbase.create_metadata_tables()
-        logging.warning('truncated metadata tables')
-
-        mdrm_data = Transformer.mdrm_to_dict(mdrm_path)
-        data_dictionary = hbase.data_dictionary_table.batch()
-        for mdrm, item in mdrm_data.items():
-            if not isinstance(item, dict):
-                continue
-
-            mdrm = Transformer.normalize_mdrm(mdrm)
-            for key, value in item.items():
-                row_key, column_key, value = Transformer.to_mdrm__mdrm(mdrm, key, value)
-                data_dictionary.put(row_key, {column_key: value})
-
-        data_dictionary.send()
-        logging.info('loaded MDRM definitions from {path} into dictionary table'.format(path=mdrm_path))
-        logging.info(current_runtime(job_start_timestamp))
-
-        # If we're initializing the database,
-        # finish by loading the MDRM data and
-        # then bailing out of the program
-        if init:
-            logging.warning('initialization complete')
-            sys.exit(0)
 
     # Start the actual ETL process
     for period in ffiec.reporting_periods():
@@ -199,7 +212,7 @@ def main(init, truncate_tables, update_metadata, rssd_target, period_target,
 
     total_runtime = (datetime.now() - job_start_timestamp)
     logging.warning('job completed in {time}'.format(time=total_runtime))
+    sys.exit(0)
 
 if __name__ == '__main__':
     main()
-    sys.exit(0)
