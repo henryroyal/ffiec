@@ -1,5 +1,7 @@
 FROM debian:stretch
 
+MAINTAINER Henry Royal <dev@hwr.io>
+
 # FFIEC Times are in Eastern Time
 ENV TZ=EST
 ENV LC_ALL=C.UTF-8
