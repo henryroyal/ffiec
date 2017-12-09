@@ -1,7 +1,7 @@
 # FFIEC ETL System
 
 This is a system for extracting call reports from the Federal Financial Institutions Examination Council's
-Central Data Repository. The data is loaded into hbase. The design hopefully facilitates querying for analysis. 
+[Central Data Repository](https://cdr.ffiec.gov). The data is loaded into hbase. The design hopefully facilitates querying for analysis. 
 
 The ETL process is executed in a docker container. A running container can be thought of as a 'job'. 
 Each job is intended to collect the data from a single institution over all collection periods. The
@@ -22,19 +22,59 @@ From the project root, build the project container.
 ```docker build . --tag=etlffiec:latest```
 
 
-Ideally you'd have something like kubernetes managing the FFIEC_TOKEN, 
-but for local testing just set some variables in your shell.
+Ideally you'd have something like kubernetes scheduling these jobs on hardware and managing the FFIEC_TOKEN.
+For local testing just set some variables in your shell. Here are all the parameters, with their defaults.
 
-FFIEC_USER=
+* FFIEC_USER=<required>
+* FFIEC_TOKEN=<required>
+* RSSD_TARGET=None
+* PERIOD_TARGET=None
+* HBASE_HOST=127.0.0.1
+* INIT=False
+* TRUNCATE_TABLES=False
+* MDRM_PATH=./MDRM.csv
+* UPDATE_METADATA=False
+* LOGGING_LEVEL=WARNING
+* LOGGING_FORMAT=LINE
 
-FFIEC_TOKEN=
 
-TARGET_RSSD=
+On the first run, you'll want to drop/create tables and load MDRM metadata into the dictionary table by passing
 
-On the first run, you'll want to drop/create tables and load MDRM metadata into the dictionary table by passing ```-eHBASE_REINIT=True -e LOAD_DATADICTIONARY=True```
+```docker run --name=initffiec --link=hbase etlffiec --init --hbase-host=hbase```
 
-```docker run --name=first_${RSSD_TOKEN} --link=hbase -eHBASE_REINIT=True -eLOAD_DATADICTIONARY=True -eFFIEC_USERNAME=${FFIEC_USER} -eFFIEC_TOKEN=${FFIEC_TOKEN} -eHBASE_HOST=hbase -eLOGGING_LEVEL=INFO etlffiec ${RSSD_TOKEN}```
+Here's how to truncate the data, if that's your thing.
+
+```docker run --name=truncateffiec --link=hbase etlffiec --truncate-tables --hbase-host=hbase```
+
+A similar command for refreshing MDRM metadata, perhaps after the data has been updated and you've rebuilt the container
+
+```docker run --name=updateffiecmetadata --link=hbase etlffiec --update-metadata --hbase-host=hbase```
 
 After that, you can loop over an array of RSSD identifiers and execute jobs in parallel.
 
-```docker run -d --name=${RSSD_TOKEN} --link=hbase -eFFIEC_USERNAME=${FFIEC_USER} -eFFIEC_TOKEN=${FFIEC_TOKEN} -eHBASE_HOST=hbase etlffiec ${RSSD_TOKEN}```
+```
+for ID in 131034 720858 229342 819172 65513 753641; do
+    docker run -d --name=${ID} --link=hbase -eFFIEC_USERNAME=${FFIEC_USER} -eFFIEC_TOKEN=${FFIEC_TOKEN} -eHBASE_HOST=hbase -eLOGGING_LEVEL=INFO -eRSSD_TARGET=${ID} etlffiec;
+    sleep 3
+done;
+```
+
+In case you want to clean up the above example
+
+```
+for ID in 131034 720858 229342 819172 65513 753641; do
+    docker stop ${ID} ; docker rm ${ID};
+done;
+```
+
+After you've created these containers, it's possible to re-run the operations with ``docker start``
+
+````
+docker build . --tag=etlffiec:latest && \
+
+docker start updateffiecmetadata && \
+
+for ID in 131034 720858 229342 819172 65513 753641; do
+    docker start ${ID}
+done;
+````
