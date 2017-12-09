@@ -2,6 +2,7 @@ import datetime
 from io import StringIO
 import csv
 import logging
+import json
 
 class Transformer:
 
@@ -72,12 +73,7 @@ class Transformer:
 
     @staticmethod
     def to_report__call_report(rssd, period, item, key, mdrm):
-        logging.debug(
-            'rssd={rssd} period={period} item={item} key={key} mdrm={mdrm}'.format(rssd=rssd,
-                                                                                   period=period,
-                                                                                   item=item,
-                                                                                   key=key,
-                                                                                   mdrm=mdrm))
+        logging.debug('rssd={rssd} period={period} item={item} key={key} mdrm={mdrm}'.format(rssd=rssd, period=period, item=item, key=key, mdrm=mdrm))
         if item[key] is None:
             item[key] = ''
         if isinstance(item[key], bytes):
@@ -87,50 +83,86 @@ class Transformer:
         if isinstance(item[key], (int, float)):
             item[key] = str(item[key])
 
-        row = bytes('{rssd}-{period}'.format(rssd=rssd, period=period), 'utf-8')
-        column = bytes('CallReport:{mdrm}:{key}'.format(mdrm=mdrm, key=key.strip().lower().replace(' ', '_')), 'utf-8')
+        row_key = '{rssd}-{period}'.format(rssd=rssd, period=period)
+        column_key = 'CallReport:{mdrm}:{key}'.format(mdrm=mdrm, key=key.strip().lower().replace(' ', '_'))
+
+        row = bytes(row_key, 'utf-8')
+        column = bytes(column_key, 'utf-8')
         value = bytes(item[key], 'utf-8')
 
-        logging.debug('{row} {column} = {value}'.format(row=row,
-                                                        column=column,
-                                                        value=value))
+        logging.debug('{row} {column} = {value}'.format(row=row, column=column, value=value))
         return row, column, value
 
     @staticmethod
-    def to_report__institution(rssd, period, institution, key):
-        logging.debug('rssd={rssd} period={period} institution={institution} key={key}'.format(rssd=rssd,
-                                                                                              period=period,
-                                                                                              institution=institution,
-                                                                                              key=key))
-        if institution[key] is None:
-            institution[key] = ''
-        if isinstance(institution[key], bytes):
-            institution[key] = str(institution[key])
-        if isinstance(institution[key], (str)):
-            institution[key] = institution[key].strip()
-        if isinstance(institution[key], (int, float)):
-            institution[key] = str(institution[key])
+    def to_report__institution(rssd, period, report, item_name):
+        logging.debug('rssd={rssd} period={period} report={report} item_name={item_name}'.format(rssd=rssd, period=period, report=report, item_name=item_name))
+        if report[item_name] is None:
+            report[item_name] = ''
+        if isinstance(report[item_name], bytes):
+            report[item_name] = str(report[item_name])
+        if isinstance(report[item_name], (str)):
+            report[item_name] = report[item_name].strip()
+        if isinstance(report[item_name], (int, float)):
+            report[item_name] = str(report[item_name])
 
-        row = bytes('{rssd}-{period}'.format(rssd=rssd, period=period), 'utf-8')
-        column = bytes('Institution:{}'.format(key.strip().lower().replace(' ', '_')), 'utf-8')
-        value = institution[key]
+        row_key = '{rssd}-{period}'.format(rssd=rssd, period=period)
+        column_key = 'Institution:{}'.format(item_name.strip().lower().replace(' ', '_'))
 
-        logging.debug('{row} {col} = {value} '.format(row=row,
-                                                      col=column,
-                                                      value=value))
+        row = bytes(row_key, 'utf-8')
+        column = bytes(column_key, 'utf-8')
+        value = report[item_name]
+
+        logging.debug('{row} {col} = {value} '.format(row=row, col=column, value=value))
         return row, column, value
 
     @staticmethod
-    def to_period__report_period():
-        return
+    def to_period__institution(period, rssd, document):
+        logging.debug('period={period} rssd={rssd} document={document}'.format(period=period, rssd=rssd, document=document))
+
+        value = {}
+        # 'document' is a derrived zeep.objects.ReportingFinancialInstitution
+        # convert it into a JSON-serializable dict
+        if document is None:
+            document = {}
+
+        for key in document:
+            if isinstance(document[key], str):
+                document[key] = document[key].strip()
+
+            value[key] = document[key]
+
+        row = bytes(period, 'utf-8')
+        column = bytes('Institution:{}'.format(rssd), 'utf-8')
+        value = bytes(json.dumps(value), 'utf-8')
+
+        logging.debug('{row} {col} = {value} '.format(row=row, col=column, value=value))
+        return row, column, value
 
     @staticmethod
-    def to_institution__institution():
-        return
+    def to_institution__period(period, rssd, document):
+        logging.debug('period={period} rssd={rssd} document={document}'.format(period=period, rssd=rssd, document=document))
+
+        value = {}
+        # 'document' is a derrived zeep.objects.
+        # convert it into a JSON-serializable dict
+        if document is None:
+            document = {}
+
+        for key in document:
+            if isinstance(document[key], str):
+                document[key] = document[key].strip()
+            value[key] = document[key]
+
+        row = bytes(str(rssd), 'utf-8')
+        column = bytes('Period:{}'.format(period), 'utf-8')
+        value = bytes(json.dumps(value), 'utf-8')
+
+        logging.debug('{row} {col} = {value} '.format(row=row, col=column, value=value))
+        return row, column, value
 
     @staticmethod
-    def to_mdrm__mdrm(mdrm, key, value):
-        logging.debug('mdrm={mdrm} key={key} value={value}'.format(mdrm=mdrm, key=key, value=value))
+    def to_mdrm__mdrm(mdrm, name, value):
+        logging.debug('mdrm={mdrm} key={key} value={value}'.format(mdrm=mdrm, key=name, value=value))
 
         if value is None:
             value = ''
@@ -142,7 +174,7 @@ class Transformer:
             value = str(value)
 
         row = bytes(mdrm, 'utf-8')
-        column = bytes('Metadata:{}'.format(key.strip().lower().replace(' ', '_')), 'utf-8')
+        column = bytes('Metadata:{}'.format(name.strip().lower().replace(' ', '_')), 'utf-8')
         value = bytes(value.strip().replace('\\n', ''), 'utf-8')
 
         logging.debug('{row} {col} = {value} '.format(row=row, col=column, value=value))

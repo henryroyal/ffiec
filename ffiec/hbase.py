@@ -6,10 +6,10 @@ REPORT_TABLE = 'report'
 REPORT_TABLE_DEFINITION = {'CallReport': dict(), 'Institution': dict()}
 
 PERIOD_TABLE = 'period'
-PERIOD_TABLE_DEFINITION = {'ReportPeriod': dict()}
+PERIOD_TABLE_DEFINITION = {'Institution': dict()}
 
 INSTITUTION_TABLE = 'institution'
-INSTITUTION_TABLE_DEFINITION = {'Institution': dict()}
+INSTITUTION_TABLE_DEFINITION = {'Period': dict()}
 
 DATA_DICTIONARY = 'dictionary'
 DATA_DICTIONARY_DEFINITION = {'Metadata': dict()}
@@ -19,10 +19,6 @@ class Hbase:
     def __init__(self, hbase_master):
         self.hbase_master = hbase_master
         self.connection = None
-
-    def _assert_connected(self):
-        if not self.connection:
-            raise ValueError('hbase connection not initialized')
 
     def connect(self):
         self.connection = happybase.Connection(self.hbase_master)
@@ -65,22 +61,25 @@ class Hbase:
             logging.error(err)
             raise err
 
-    def truncate_data_dictionary(self):
-        self._disable_table(DATA_DICTIONARY)
-        self._delete_table(DATA_DICTIONARY)
-        self._create_table(DATA_DICTIONARY, DATA_DICTIONARY_DEFINITION)
-
-    def delete_all_tables(self):
-        for table in (REPORT_TABLE, PERIOD_TABLE, INSTITUTION_TABLE, DATA_DICTIONARY):
+    def delete_metadata_tables(self):
+        for table in (PERIOD_TABLE, INSTITUTION_TABLE, DATA_DICTIONARY):
             self._disable_table(table)
             self._delete_table(table)
-        logging.warning('deleted hbase tables')
+        logging.warning('deleted metadata tables')
 
-    def create_all_tables(self):
-        for table, definition in ((REPORT_TABLE, REPORT_TABLE_DEFINITION),
-                                  (PERIOD_TABLE, PERIOD_TABLE_DEFINITION),
+    def create_metadata_tables(self):
+        for table, definition in ((PERIOD_TABLE, PERIOD_TABLE_DEFINITION),
                                   (INSTITUTION_TABLE, INSTITUTION_TABLE_DEFINITION),
                                   (DATA_DICTIONARY, DATA_DICTIONARY_DEFINITION)):
 
             self._create_table(table, definition)
-        logging.warning('created hbase tables')
+        logging.warning('created metadata tables')
+
+    def delete_report_table(self):
+        self._disable_table(REPORT_TABLE)
+        self._delete_table(REPORT_TABLE)
+        logging.warning('deleted report table')
+
+    def create_report_table(self):
+        self._create_table(REPORT_TABLE, REPORT_TABLE_DEFINITION)
+        logging.warning('created report table')
