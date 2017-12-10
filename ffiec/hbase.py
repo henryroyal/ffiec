@@ -16,12 +16,13 @@ DATA_DICTIONARY_DEFINITION = {'Metadata': dict()}
 
 
 class Hbase:
-    def __init__(self, hbase_master):
-        self.hbase_master = hbase_master
+    def __init__(self, thrift_gateway, thrift_port):
+        self.thrift_gateway = thrift_gateway
+        self.thrift_port = thrift_port
         self.connection = None
 
     def connect(self):
-        self.connection = happybase.Connection(self.hbase_master)
+        self.connection = happybase.Connection(host=self.thrift_gateway, port=self.thrift_port)
 
     @property
     def report_table(self):
@@ -49,13 +50,11 @@ class Hbase:
     def _delete_table(self, table):
         try:
             self.connection.delete_table(table)
-            logging.debug('deleted table {}'.format(table))
         except Exception as err:  # FIXME - built thrift objects and make this correct
             logging.error(err)
 
     def _create_table(self, table, definition):
         try:
-            logging.debug('created table {}'.format(table))
             self.connection.create_table(table, definition)
         except Exception as err:
             logging.error(err)
@@ -80,14 +79,13 @@ class Hbase:
         logging.warning('created report table')
 
     def delete_lookup_tables(self):
-        for table in ((PERIOD_TABLE, PERIOD_TABLE_DEFINITION,
-                       INSTITUTION_TABLE, INSTITUTION_TABLE_DEFINITION)):
+        for table in (PERIOD_TABLE, INSTITUTION_TABLE):
             self._disable_table(table)
             self._delete_table(table)
         logging.warning('deleted lookup tables')
 
     def create_lookup_tables(self):
-        for table in ((PERIOD_TABLE, PERIOD_TABLE_DEFINITION,
-                       INSTITUTION_TABLE, INSTITUTION_TABLE_DEFINITION)):
-            self._create_table(table)
+        for table, definition in ((PERIOD_TABLE, PERIOD_TABLE_DEFINITION),
+                                  (INSTITUTION_TABLE, INSTITUTION_TABLE_DEFINITION)):
+            self._create_table(table, definition)
         logging.warning('created lookup tables')

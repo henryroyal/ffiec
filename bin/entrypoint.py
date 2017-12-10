@@ -100,22 +100,23 @@ def load_mdrm_metadata(hbase, mdrm_path):
 @click.option('--update-metadata', envvar='UPDATE_METADATA', is_flag=True, type=bool)
 @click.option('--rssd-target', envvar='RSSD_TARGET', default=None)
 @click.option('--period-target', envvar='PERIOD_TARGET', default=None)
-@click.option('--hbase-host', envvar='HBASE_HOST', default='127.0.0.1')
+@click.option('--thrift-gateway', envvar='THRIFT_GATEWAY', default='127.0.0.1')
+@click.option('--thrift-port', envvar='THRIFT_PORT', default=9090)
 @click.option('--ffiec-wsdl-url', envvar='FFIEC_WSDL_URL', default=FFIEC_WSDL)
 @click.option('--ffiec-username', envvar='FFIEC_USERNAME')
 @click.option('--ffiec-token', envvar='FFIEC_TOKEN')
-@click.option('--mdrm-path', envvar='MDRM_PATH', default='MDRM.csv')
+@click.option('--mdrm-path', envvar='MDRM_PATH', default='MDRM_CSV.csv')
 @click.option('--logging-level', envvar='LOGGING_LEVEL', type=LOG_LEVELS, default='WARNING')
 @click.option('--logging-format', envvar='LOGGING_FORMAT', type=LOG_FORMATS, default='JSON')
 def main(init, truncate_tables, update_metadata, rssd_target, period_target,
-         hbase_host, ffiec_wsdl_url, ffiec_username, ffiec_token,
+         thrift_gateway, thrift_port, ffiec_wsdl_url, ffiec_username, ffiec_token,
          mdrm_path, logging_level, logging_format):
 
     start_time = datetime.now()
     init_logging(logging_level, logging_format)
     logging.debug('initialized logging')
 
-    hbase = Hbase(hbase_host)
+    hbase = Hbase(thrift_gateway, thrift_port)  # TODO - hbase compat mode
     hbase.connect()
 
     if init:

@@ -1,12 +1,15 @@
+import logging
 import zeep
+import zeep.exceptions
 from zeep.wsse.username import UsernameToken
 
 
-CALL_REPORT = 'Call'
-ID_RSSD = 'ID_RSSD'
-SDF = 'SDF'
-
 class Extractor:
+
+    CALL_REPORT = 'Call'
+    ID_RSSD = 'ID_RSSD'
+    SDF = 'SDF'
+
     def __init__(self, wsdl_url, username, token):
         self.wsdl_url = wsdl_url
         self.username = username
@@ -25,13 +28,13 @@ class Extractor:
 
     def reporting_periods(self):
         self._assert_client_initialized_or_fail()
-        return self.client.service.RetrieveReportingPeriods(CALL_REPORT)
+        return self.client.service.RetrieveReportingPeriods(self.CALL_REPORT)
 
     def reporting_institutions(self, period):
         self._assert_client_initialized_or_fail()
-        return self.client.service.RetrievePanelOfReporters(CALL_REPORT, period)
+        return self.client.service.RetrievePanelOfReporters(self.CALL_REPORT, period)
 
     def call_report_facsimile(self, period, institution):
         self._assert_client_initialized_or_fail()
-        return self.client.service.RetrieveFacsimile(CALL_REPORT, period, ID_RSSD, institution[ID_RSSD], SDF)
-
+        return self.client.service.RetrieveFacsimile(self.CALL_REPORT, period, self.ID_RSSD,
+                                                     institution[self.ID_RSSD], self.SDF)
