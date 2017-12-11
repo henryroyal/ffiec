@@ -102,7 +102,7 @@ def load_mdrm_metadata(hbase, mdrm_path):
 @click.option('--rssd-target', envvar='RSSD_TARGET', default=None)
 @click.option('--period-target', envvar='PERIOD_TARGET', default=None)
 @click.option('--thrift-gateway', envvar='THRIFT_GATEWAY', default='127.0.0.1')
-@click.option('--thrift-port', envvar='THRIFT_PORT', default=9090)
+@click.option('--thrift-port', envvar='THRIFT_PORT', default=9090, type=int)
 @click.option('--ffiec-wsdl-url', envvar='FFIEC_WSDL_URL', default=FFIEC_WSDL)
 @click.option('--ffiec-username', envvar='FFIEC_USERNAME')
 @click.option('--ffiec-token', envvar='FFIEC_TOKEN')

@@ -15,7 +15,7 @@ then specify the period with PERIOD_TARGET. RSSD_TARGET and PERIOD_TARGET are no
 If you're feeling patient, you can omit RSSD_TARGET and PERIOD_TARGET.
 
 ## To run an ETL job:
-You'll need an instance of hbase. The program assumes you're running a thrift server on port 9090. 
+You'll need an instance of hbase. The program assumes you're running a thrift server. 
 This will get you something to test against, if for some reason you don't have an Hbase cluster laying around.
 
 ```docker run --name hbase -h hbase -d -v $PWD/hbase:/data -p 2181:2181 -p 8080:8080 -p 8085:8085 -p 9160:9160 -p 16010:16010 -p 9090:9090 dajobe/hbase```
@@ -31,7 +31,8 @@ For local testing just set some variables in your shell. Here are all the parame
 * FFIEC_TOKEN=
 * RSSD_TARGET=None
 * PERIOD_TARGET=None
-* HBASE_HOST=127.0.0.1
+* THRIFT_GATEWAY=127.0.0.1
+* THRIFT_PORT=9090
 * INIT=False
 * TRUNCATE_TABLES=False
 * MDRM_PATH=./MDRM.csv
