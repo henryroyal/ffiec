@@ -89,8 +89,9 @@ def load_mdrm_metadata(hbase, mdrm_path):
 
         mdrm = Transformer.normalize_mdrm(mdrm)
         for key, value in item.items():
-            row_key, column_key, value = Transformer.to_mdrm__mdrm(mdrm, key, value)
+            row_key, column_key, value = Transformer.to_dictionary__mdrm(mdrm, key, value)
             data_dictionary.put(row_key, {column_key: value})
+
     data_dictionary.send()
 
 
@@ -175,24 +176,20 @@ def main(init, truncate_tables, update_metadata, rssd_target, period_target,
             unicode_sdf_facsimile = Transformer.bytes_to_unicode(ffiec.call_report_facsimile(period, institution))
             facsimile = Transformer.sdf_to_dictreader(unicode_sdf_facsimile)
 
-            for key in institution:
-                row_key, column_key, value = Transformer.to_report__institution(institution[ID_RSSD], period, institution, key)
-                report_table.put(row_key, {column_key: value})
+            for item in facsimile:
+                mdrm = Transformer.normalize_mdrm(item[MDRM])
+                if mdrm is None:
+                    logging.critical('MDRM is None, dropped a metric: {metric}'.format(metric=item))
+                    continue
 
-                for item in facsimile:
-                    mdrm = Transformer.normalize_mdrm(item[MDRM])
-                    if mdrm is None:
-                        logging.critical('MDRM is None, dropped a metric: {metric}'.format(metric=item))
-                        continue
-
-                    for key in item:
-                        row_key, column_key, value = Transformer.to_report__call_report(rssd, period, item, key, mdrm)
-                        report_table.put(row_key, {column_key: value})
+                for key in item:
+                    row_key, column_key, value = Transformer.to_report__call_report(rssd, period, item, key, mdrm)
+                    report_table.put(row_key, {column_key: value})
 
             report_table.send()
-            logging.info('loaded report::Institution into {rssd}-{period}'.format(rssd=rssd, period=period))
-            logging.info('loaded report::CallReport into {rssd}-{period}'.format(rssd=rssd, period=period))
+            logging.info('loaded call report for {rssd}-{period}'.format(rssd=rssd, period=period))
             logging.info(current_runtime(start_time))
+
 
         # Load period=>institution lookup table `period`
         period_table = hbase.period_table.batch()
@@ -207,6 +204,7 @@ def main(init, truncate_tables, update_metadata, rssd_target, period_target,
         period_table.send()
         logging.info('loaded period=>institution lookup table for period {}'.format(period))
         logging.info(current_runtime(start_time))
+
 
         # Load institution=>period lookup data into `institution`
         institution_table = hbase.institution_table.batch()

@@ -72,6 +72,26 @@ class Transformer:
         return mdrm_hash
 
     @staticmethod
+    def to_dictionary__mdrm(mdrm, name, value):
+        logging.debug('mdrm={mdrm} key={key} value={value}'.format(mdrm=mdrm, key=name, value=value))
+
+        if value is None:
+            value = ''
+        if isinstance(value, bytes):
+            value = str(value)
+        if isinstance(value, (str)):
+            value = value.strip()
+        if isinstance(value, (int, float)):
+            value = str(value)
+
+        row = bytes(mdrm, 'utf-8')
+        column = bytes('M:{}'.format(name.strip().lower().replace(' ', '_')), 'utf-8')
+        value = bytes(value.strip().replace('\\n', ''), 'utf-8')
+
+        logging.debug('{row} {col} = {value} '.format(row=row, col=column, value=value))
+        return row, column, value
+
+    @staticmethod
     def to_report__call_report(rssd, period, item, key, mdrm):
         logging.debug('rssd={rssd} period={period} item={item} key={key} mdrm={mdrm}'.format(rssd=rssd, period=period, item=item, key=key, mdrm=mdrm))
         if item[key] is None:
@@ -84,35 +104,13 @@ class Transformer:
             item[key] = str(item[key])
 
         row_key = '{rssd}-{period}'.format(rssd=rssd, period=period)
-        column_key = 'CallReport:{mdrm}:{key}'.format(mdrm=mdrm, key=key.strip().lower().replace(' ', '_'))
+        column_key = 'R:{mdrm}:{key}'.format(mdrm=mdrm, key=key.strip().lower().replace(' ', '_'))
 
         row = bytes(row_key, 'utf-8')
         column = bytes(column_key, 'utf-8')
         value = bytes(item[key], 'utf-8')
 
         logging.debug('{row} {column} = {value}'.format(row=row, column=column, value=value))
-        return row, column, value
-
-    @staticmethod
-    def to_report__institution(rssd, period, report, item_name):
-        logging.debug('rssd={rssd} period={period} report={report} item_name={item_name}'.format(rssd=rssd, period=period, report=report, item_name=item_name))
-        if report[item_name] is None:
-            report[item_name] = ''
-        if isinstance(report[item_name], bytes):
-            report[item_name] = str(report[item_name])
-        if isinstance(report[item_name], (str)):
-            report[item_name] = report[item_name].strip()
-        if isinstance(report[item_name], (int, float)):
-            report[item_name] = str(report[item_name])
-
-        row_key = '{rssd}-{period}'.format(rssd=rssd, period=period)
-        column_key = 'Institution:{}'.format(item_name.strip().lower().replace(' ', '_'))
-
-        row = bytes(row_key, 'utf-8')
-        column = bytes(column_key, 'utf-8')
-        value = report[item_name]
-
-        logging.debug('{row} {col} = {value} '.format(row=row, col=column, value=value))
         return row, column, value
 
     @staticmethod
@@ -132,7 +130,7 @@ class Transformer:
             value[key] = document[key]
 
         row = bytes(period, 'utf-8')
-        column = bytes('Institution:{}'.format(rssd), 'utf-8')
+        column = bytes('I:{}'.format(rssd), 'utf-8')
         value = bytes(json.dumps(value), 'utf-8')
 
         logging.debug('{row} {col} = {value} '.format(row=row, col=column, value=value))
@@ -154,28 +152,8 @@ class Transformer:
             value[key] = document[key]
 
         row = bytes(str(rssd), 'utf-8')
-        column = bytes('Period:{}'.format(period), 'utf-8')
+        column = bytes('P:{}'.format(period), 'utf-8')
         value = bytes(json.dumps(value), 'utf-8')
-
-        logging.debug('{row} {col} = {value} '.format(row=row, col=column, value=value))
-        return row, column, value
-
-    @staticmethod
-    def to_mdrm__mdrm(mdrm, name, value):
-        logging.debug('mdrm={mdrm} key={key} value={value}'.format(mdrm=mdrm, key=name, value=value))
-
-        if value is None:
-            value = ''
-        if isinstance(value, bytes):
-            value = str(value)
-        if isinstance(value, (str)):
-            value = value.strip()
-        if isinstance(value, (int, float)):
-            value = str(value)
-
-        row = bytes(mdrm, 'utf-8')
-        column = bytes('Metadata:{}'.format(name.strip().lower().replace(' ', '_')), 'utf-8')
-        value = bytes(value.strip().replace('\\n', ''), 'utf-8')
 
         logging.debug('{row} {col} = {value} '.format(row=row, col=column, value=value))
         return row, column, value
