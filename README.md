@@ -48,7 +48,7 @@ Here's how to truncate the data, if that's your thing.
 
 ```docker run --name=truncateffiec --link=hbase etlffiec --truncate-tables --thrift-gateway=hbase```
 
-A similar command for refreshing MDRM metadata, perhaps after the data has been updated and you've rebuilt the container
+A similar command for refreshing MDRM metadata, perhaps after the data has been updated and you've rebuilt the container (or if you just ran the truncation example above without thinking)
 
 ```docker run --name=updateffiecmetadata --link=hbase etlffiec --update-metadata --thrift-gateway=hbase```
 
@@ -68,6 +68,7 @@ docker start 131034 720858 229342 819172 65513 753641
 ````
 
 If you're feeling ambitious.
+
 ```
 docker run -d --name=collectffiec --link=hbase -eFFIEC_USERNAME=${FFIEC_USER} -eFFIEC_TOKEN=${FFIEC_TOKEN} -eTHRIFT_GATEWAY=hbase etlffiec
 ```
