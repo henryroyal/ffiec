@@ -1,2 +1,4 @@
 jupyter
 ipykernel
+pandas
+pandasql
