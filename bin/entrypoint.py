@@ -162,8 +162,10 @@ def main(init, truncate_tables, update_metadata, rssd_target, period_target,
         reporters = ffiec.reporting_institutions(period)
         rssd_set = {int(reporter[ID_RSSD]) for reporter in reporters}
 
-        # Load the actual call reports into `report`
         report_table = hbase.report_table.batch()
+        period_table = hbase.period_table.batch()
+        institution_table = hbase.institution_table.batch()
+
         for institution in reporters:
             rssd = int(institution[ID_RSSD])
             if rssd_is_filtered(rssd_target, rssd):
@@ -190,36 +192,19 @@ def main(init, truncate_tables, update_metadata, rssd_target, period_target,
             logging.info('loaded call report for {rssd}-{period}'.format(rssd=rssd, period=period))
             logging.info(current_runtime(start_time))
 
-
-        # Load period=>institution lookup table `period`
-        period_table = hbase.period_table.batch()
-        for institution in reporters:
-            rssd = int(institution[ID_RSSD])
-            if rssd_is_filtered(rssd_target, rssd):
-                continue
-
             row_key, column_key, value = Transformer.to_period__institution(period, institution[ID_RSSD], institution)
             period_table.put(row_key, {column_key: value})
 
-        period_table.send()
-        logging.info('loaded period=>institution lookup table for period {}'.format(period))
-        logging.info(current_runtime(start_time))
-
-
-        # Load institution=>period lookup data into `institution`
-        institution_table = hbase.institution_table.batch()
-        for institution in reporters:
-            rssd = int(institution[ID_RSSD])
-            if rssd_is_filtered(rssd_target, rssd):
-                logging.debug('filtering reporter rssd# {rssd}'.format(rssd=rssd))
-                continue
+            period_table.send()
+            logging.info('loaded period=>institution lookup table for period {}'.format(period))
+            logging.info(current_runtime(start_time))
 
             row_key, column_key, value = Transformer.to_institution__period(period, rssd, institution)
             institution_table.put(row_key, {column_key: value})
 
-        institution_table.send()
-        logging.info('loaded institution=>period lookup table for period {}'.format(period))
-        logging.info(current_runtime(start_time))
+            institution_table.send()
+            logging.info('loaded institution=>period lookup table for period {}'.format(period))
+            logging.info(current_runtime(start_time))
 
     logging.warning(completed_runtime(start_time))
     sys.exit(0)
