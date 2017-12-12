@@ -188,23 +188,17 @@ def main(init, truncate_tables, update_metadata, rssd_target, period_target,
                     row_key, column_key, value = Transformer.to_report__call_report(rssd, period, item, key, mdrm)
                     report_table.put(row_key, {column_key: value})
 
-            report_table.send()
-            logging.info('loaded call report for {rssd}-{period}'.format(rssd=rssd, period=period))
-            logging.info(current_runtime(start_time))
-
             row_key, column_key, value = Transformer.to_period__institution(period, institution[ID_RSSD], institution)
             period_table.put(row_key, {column_key: value})
-
-            period_table.send()
-            logging.info('loaded period=>institution lookup table for period {}'.format(period))
-            logging.info(current_runtime(start_time))
 
             row_key, column_key, value = Transformer.to_institution__period(period, rssd, institution)
             institution_table.put(row_key, {column_key: value})
 
-            institution_table.send()
-            logging.info('loaded institution=>period lookup table for period {}'.format(period))
-            logging.info(current_runtime(start_time))
+        report_table.send()
+        period_table.send()
+        institution_table.send()
+        logging.info('loaded tables for period {}'.format(period))
+        logging.info(current_runtime(start_time))
 
     logging.warning(completed_runtime(start_time))
     sys.exit(0)
