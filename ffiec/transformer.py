@@ -92,23 +92,25 @@ class Transformer:
         return row, column, value
 
     @staticmethod
-    def to_report__call_report(rssd, period, item, key, mdrm):
-        logging.debug('rssd={rssd} period={period} item={item} key={key} mdrm={mdrm}'.format(rssd=rssd, period=period, item=item, key=key, mdrm=mdrm))
-        if item[key] is None:
-            item[key] = ''
-        if isinstance(item[key], bytes):
-            item[key] = str(item[key], 'utf-8')
-        if isinstance(item[key], (str)):
-            item[key] = item[key].strip()
-        if isinstance(item[key], (int, float)):
-            item[key] = str(item[key])
+    def to_report__call_report(rssd, period, mdrm, document):
+        logging.debug('rssd={rssd} period={period} mdrm={mdrm} document={document}'.format(rssd=rssd, period=period,
+                                                                                           mdrm=mdrm, document=document))
+        value = {}
+        if document is None:
+            document = {}
+
+        for key in document:
+            if isinstance(document[key], str):
+                document[key] = document[key].strip()
+
+            value[key] = document[key]
 
         row_key = '{rssd}-{period}'.format(rssd=rssd, period=period)
-        column_key = 'R:{mdrm}:{key}'.format(mdrm=mdrm, key=key.strip().lower().replace(' ', '_'))
+        column_key = 'R:{mdrm}'.format(mdrm=mdrm)
 
         row = bytes(row_key, 'utf-8')
         column = bytes(column_key, 'utf-8')
-        value = bytes(item[key], 'utf-8')
+        value = bytes(json.dumps(value), 'utf-8')
 
         logging.debug('{row} {column} = {value}'.format(row=row, column=column, value=value))
         return row, column, value

@@ -184,9 +184,8 @@ def main(init, truncate_tables, update_metadata, rssd_target, period_target,
                     logging.critical('MDRM is None, dropped a metric: {metric}'.format(metric=item))
                     continue
 
-                for key in item:
-                    row_key, column_key, value = Transformer.to_report__call_report(rssd, period, item, key, mdrm)
-                    report_table.put(row_key, {column_key: value})
+                row_key, column_key, value = Transformer.to_report__call_report(rssd, period, mdrm, item)
+                report_table.put(row_key, {column_key: value})
 
             row_key, column_key, value = Transformer.to_period__institution(period, institution[ID_RSSD], institution)
             period_table.put(row_key, {column_key: value})
