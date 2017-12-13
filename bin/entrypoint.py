@@ -193,9 +193,9 @@ def main(init, truncate_tables, update_metadata, rssd_target, period_target,
             row_key, column_key, value = Transformer.to_institution__period(period, rssd, institution)
             institution_table.put(row_key, {column_key: value})
 
-        report_table.send()
-        period_table.send()
-        institution_table.send()
+            report_table.send()
+            period_table.send()
+            institution_table.send()
         logging.info('loaded tables for period {}'.format(period))
         logging.info(current_runtime(start_time))
 

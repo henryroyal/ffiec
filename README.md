@@ -57,7 +57,7 @@ After that, you can loop over an array of RSSD identifiers and execute jobs in p
 
 ```
 for ID in 131034 720858 229342 819172 65513 753641; do
-    docker run -d --name=${ID} --link=hbase -eFFIEC_USERNAME=${FFIEC_USER} -eFFIEC_TOKEN=${FFIEC_TOKEN} -eTHRIFT_GATEWAY=hbase -eLOGGING_LEVEL=INFO -eRSSD_TARGET=${ID} etlffiec;
+    docker run -d --name=${ID} --link=hbase -eFFIEC_USERNAME=${FFIEC_USERNAME} -eFFIEC_TOKEN=${FFIEC_TOKEN} -eTHRIFT_GATEWAY=hbase -eLOGGING_LEVEL=INFO -eRSSD_TARGET=${ID} etlffiec;
     sleep 3
 done;
 ```
@@ -71,7 +71,7 @@ docker start 131034 720858 229342 819172 65513 753641
 If you're feeling ambitious.
 
 ```
-docker run -d --name=collectffiec --link=hbase -eFFIEC_USERNAME=${FFIEC_USER} -eFFIEC_TOKEN=${FFIEC_TOKEN} -eTHRIFT_GATEWAY=hbase etlffiec
+docker run -d --name=collectffiec --link=hbase -eFFIEC_USERNAME=${FFIEC_USERNAME} -eFFIEC_TOKEN=${FFIEC_TOKEN} -eTHRIFT_GATEWAY=hbase etlffiec
 ```
 
 To clean up all the above examples
