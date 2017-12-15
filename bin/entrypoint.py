@@ -4,6 +4,8 @@ import json_log_formatter
 import logging
 from datetime import datetime
 
+import zeep.exceptions
+
 from ffiec.extractor import Extractor
 from ffiec.transformer import Transformer
 from ffiec.hbase import Hbase
@@ -175,8 +177,15 @@ def main(init, truncate_tables, update_metadata, rssd_target, period_target,
                 logging.info('no report for reporter {rssd} at period {period}'.format(rssd=rssd, period=period))
                 continue
 
-            unicode_sdf_facsimile = Transformer.bytes_to_unicode(ffiec.call_report_facsimile(period, institution))
-            facsimile = Transformer.sdf_to_dictreader(unicode_sdf_facsimile)
+            try:
+                unicode_sdf_facsimile = Transformer.bytes_to_unicode(ffiec.call_report_facsimile(period, institution))
+                facsimile = Transformer.sdf_to_dictreader(unicode_sdf_facsimile)
+
+            except zeep.exceptions.Fault as err:
+                logging.error('dropped {period} call report for {rssd}, {err}'.format(period=period,
+                                                                                      rssd=institution[ID_RSSD],
+                                                                                      err=err))
+                continue  # log error and skip over facsimiles which are missing, it happens
 
             for item in facsimile:
                 mdrm = Transformer.normalize_mdrm(item[MDRM])
@@ -196,6 +205,7 @@ def main(init, truncate_tables, update_metadata, rssd_target, period_target,
             report_table.send()
             period_table.send()
             institution_table.send()
+
         logging.info('loaded tables for period {}'.format(period))
         logging.info(current_runtime(start_time))
 

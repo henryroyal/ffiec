@@ -71,7 +71,7 @@ docker start 131034 720858 229342 819172 65513 753641
 If you're feeling ambitious.
 
 ```
-docker run -d --name=collectffiec --link=hbase -eFFIEC_USERNAME=${FFIEC_USERNAME} -eFFIEC_TOKEN=${FFIEC_TOKEN} -eTHRIFT_GATEWAY=hbase etlffiec
+docker run -d --name=collectffiec --link=hbase -eFFIEC_USERNAME=${FFIEC_USERNAME} -eFFIEC_TOKEN=${FFIEC_TOKEN} -eLOGGING_LEVEL=INFO -eTHRIFT_GATEWAY=hbase etlffiec
 ```
 
 To clean up all the above examples
